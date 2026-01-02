@@ -1,0 +1,73 @@
+import cv2
+import face_recognition
+import pickle
+import os
+from imutils import paths
+
+# --- CẤU HÌNH ---
+DATASET_PATH = "dataset"
+ENCODINGS_FILE = "encodings.pickle"
+DETECTION_METHOD = "hog" # Chọn "cnn" nếu có GPU, "hog" cho CPU nhanh hơn
+
+def apply_clahe(image):
+    """
+    Hàm cân bằng sáng CLAHE (như trong báo cáo)
+    Giúp nhận diện tốt hơn khi ảnh bị tối hoặc ngược sáng.
+    """
+    # Chuyển sang không gian màu LAB
+    lab = cv2.cvtColor(image, cv2.COLOR_RGB2LAB)
+    l, a, b = cv2.split(lab)
+    
+    # Áp dụng CLAHE lên kênh L (Lightness)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    cl = clahe.apply(l)
+    
+    # Gộp lại và chuyển về RGB
+    limg = cv2.merge((cl, a, b))
+    final = cv2.cvtColor(limg, cv2.COLOR_LAB2RGB)
+    return final
+
+def encode_faces():
+    print("[INFO] Đang tìm kiếm ảnh trong thư mục dataset...")
+    image_paths = list(paths.list_images(DATASET_PATH))
+    
+    known_encodings = []
+    known_names = []
+
+    if len(image_paths) == 0:
+        print("[ERROR] Không tìm thấy ảnh nào! Hãy chạy file 1_data_collection.py trước.")
+        return
+
+    for (i, image_path) in enumerate(image_paths):
+        # Lấy tên người từ tên thư mục
+        name = image_path.split(os.path.sep)[-2]
+        print(f"[INFO] Đang xử lý ảnh {i + 1}/{len(image_paths)}: {name}")
+
+        # Load ảnh
+        image = cv2.imread(image_path)
+        rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+        # --- BƯỚC QUAN TRỌNG: TIỀN XỬ LÝ (CLAHE) ---
+        # Áp dụng CLAHE để chuẩn hóa ánh sáng trước khi học
+        rgb = apply_clahe(rgb)
+
+        # Phát hiện vị trí khuôn mặt
+        boxes = face_recognition.face_locations(rgb, model=DETECTION_METHOD)
+
+        # Mã hóa khuôn mặt thành vector 128 chiều
+        encodings = face_recognition.face_encodings(rgb, boxes)
+
+        for encoding in encodings:
+            known_encodings.append(encoding)
+            known_names.append(name)
+
+    print("[INFO] Đang lưu dữ liệu ra file pickle...")
+    data = {"encodings": known_encodings, "names": known_names}
+    
+    with open(ENCODINGS_FILE, "wb") as f:
+        f.write(pickle.dumps(data))
+        
+    print("[SUCCESS] Hoàn tất! Đã tạo file 'encodings.pickle'. Sẵn sàng để chạy App.")
+
+if __name__ == "__main__":
+    encode_faces()
