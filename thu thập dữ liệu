@@ -1,0 +1,67 @@
+import cv2
+import os
+import time
+
+# --- CẤU HÌNH ---
+DATASET_PATH = "dataset"
+CAPTURE_DELAY = 0.5  # Giây giữa các lần chụp
+MAX_IMAGES = 30      # Số lượng ảnh cần chụp cho 1 người
+
+def create_dataset():
+    # 1. Nhập tên người cần thu thập
+    name = input("Nhập tên người cần thêm (VD: NguyenVanA): ").strip()
+    if not name:
+        print("Tên không được để trống!")
+        return
+
+    # 2. Tạo thư mục lưu ảnh
+    save_path = os.path.join(DATASET_PATH, name)
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+        print(f"Đã tạo thư mục: {save_path}")
+    else:
+        print(f"Thư mục {save_path} đã tồn tại. Ảnh mới sẽ được thêm vào.")
+
+    # 3. Khởi động Camera
+    print("Đang mở Camera... Vui lòng nhìn vào Camera.")
+    cap = cv2.VideoCapture(0)
+    
+    # Load model phát hiện khuôn mặt nhanh của OpenCV để hỗ trợ crop (tùy chọn)
+    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+
+    count = 0
+    while count < MAX_IMAGES:
+        ret, frame = cap.read()
+        if not ret:
+            print("Không thể đọc từ Camera!")
+            break
+
+        # Copy frame để vẽ lên màn hình mà không ảnh hưởng ảnh gốc
+        display_frame = frame.copy()
+
+        # Hiển thị hướng dẫn
+        cv2.putText(display_frame, f"Captured: {count}/{MAX_IMAGES}", (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+        cv2.imshow("Data Collection - Nhấn 'q' để thoát", display_frame)
+
+        # Tự động chụp hoặc nhấn phím 's'
+        key = cv2.waitKey(1)
+        if key == ord('q'):
+            break
+        
+        # Tự động lưu ảnh sau mỗi khoảng thời gian
+        img_name = f"{name}_{int(time.time())}_{count}.jpg"
+        img_path = os.path.join(save_path, img_name)
+        
+        cv2.imwrite(img_path, frame)
+        print(f"Đã lưu: {img_name}")
+        count += 1
+        
+        time.sleep(CAPTURE_DELAY) # Dừng một chút để người dùng đổi góc mặt
+
+    print(f"\nHoàn tất! Đã thu thập {count} ảnh cho {name}.")
+    cap.release()
+    cv2.destroyAllWindows()
+
+if __name__ == "__main__":
+    create_dataset()
